@@ -38,8 +38,25 @@ class App(customtkinter.CTk):
             self.apps_dict = self.app_name["apps"]
 
         for index, app in enumerate(self.apps_dict.keys()):
-            self.app_button = customtkinter.CTkButton(master=self.main_content, font=("Arial", 18, "bold"), text=app, width=300, height=50, command=lambda app=app: self.launch_app(self.apps_dict[app]))
+            self.app_button = customtkinter.CTkButton(master=self.main_content, font=("Arial", 18, "bold"), text=app, width=300, height=50, 
+            command=lambda app=app: self.launch_app(self.apps_dict[app])
+            )
             self.app_button.grid(row=index, column=0, pady=7, padx=5)
+
+            self.app_delete_button = customtkinter.CTkButton(master=self.main_content, font=("Arial", 18, "bold"), fg_color="#893838", 
+            hover_color="#662525", text="Delete", width=300, height=50, command=lambda app=app: self.delete_app(app)
+            )
+            self.app_delete_button.grid(row=index, column=1, pady=7, padx=5)
+
+    def delete_app(self, app):
+        self.apps_dict.pop(app)
+
+        with open(file="config.json", mode="w") as file:
+            json.dump(self.app_name, file)
+        
+        for widget in self.main_content.winfo_children():
+            widget.destroy()
+        self.create_app_buttons()
 
     def launch_app(self, command):
         try:
@@ -79,13 +96,19 @@ class App(customtkinter.CTk):
         self.add_app.title("")
         self.add_app.geometry("600x325")
 
-        self.add_app_name = customtkinter.CTkEntry(master=self.add_app, placeholder_text="Title", font=("Arial", 18, "bold"), width=450, height=60)
+        self.add_app_name = customtkinter.CTkEntry(master=self.add_app, placeholder_text="Title", 
+        font=("Arial", 18, "bold"), width=450, height=60
+        )
         self.add_app_name.pack(pady=20)
 
-        self.add_app_cmd = customtkinter.CTkEntry(master=self.add_app, placeholder_text="Command", font=("Arial", 18, "bold"), width=450, height=60)
+        self.add_app_cmd = customtkinter.CTkEntry(master=self.add_app, placeholder_text="Command", 
+        font=("Arial", 18, "bold"), width=450, height=60
+        )
         self.add_app_cmd.pack(pady=20)
 
-        self.save_add_app_button = customtkinter.CTkButton(master=self.add_app, text="Save", font=("Arial", 18, "bold"), command=self.save_app, width=450, height=60)
+        self.save_add_app_button = customtkinter.CTkButton(master=self.add_app, text="Save", 
+        font=("Arial", 18, "bold"), command=self.save_app, width=450, height=60
+        )
         self.save_add_app_button.pack(pady=20)
 
     def save_app(self):
