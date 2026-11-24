@@ -44,7 +44,7 @@ class App(customtkinter.CTk):
             self.app_button.grid(row=index, column=0, pady=7, padx=5)
 
             self.app_delete_button = customtkinter.CTkButton(master=self.main_content, font=("Arial", 18, "bold"), fg_color="#893838", 
-            hover_color="#662525", text="Delete", width=300, height=50, command=lambda app=app: self.delete_app(app)
+            hover_color="#662525", text="Remove", width=300, height=50, command=lambda app=app: self.delete_app(app)
             )
             self.app_delete_button.grid(row=index, column=1, pady=7, padx=5)
 
