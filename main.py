@@ -15,6 +15,9 @@ class App(customtkinter.CTk):
         # This lets us check if an error window is already open.
         self.err_win = None
 
+        # Checks if its safe to open the config file
+        self.config_valid = True
+
         # Create all parts of the application
         self.config_window()
         self.create_sidebar()
@@ -66,8 +69,7 @@ class App(customtkinter.CTk):
         # Check if an error window is already open.
         # winfo_exists() returns True if the window still exists.
         if self.err_win is not None and self.err_win.winfo_exists():
-
-            # Bring the existing error window to the front
+            self.err_lbl.configure(text=message)
             self.err_win.lift()
             self.err_win.focus_force()
             return
@@ -75,21 +77,102 @@ class App(customtkinter.CTk):
         # Create a new error window
         self.err_win = customtkinter.CTkToplevel(master=self)
         self.err_win.title("Error")
-        self.err_win.geometry("280x100")
+        self.err_win.geometry("500x200")
         self.err_win.resizable(False, False)
+
+        self.err_win.transient(self)
+        self.err_win.lift()
+        self.err_win.focus_force()
 
         # Display the error message inside the window.
         # The message comes from the function that called show_error().
-        err_lbl = customtkinter.CTkLabel(
+        self.err_lbl = customtkinter.CTkLabel(
             master=self.err_win,
             text=message,
             font=("Arial", 17, "bold")
         )
-        err_lbl.pack(expand=True, padx=10, pady=10)
+        self.err_lbl.pack(expand=True, padx=10, pady=10)
+
+        self.err_win.protocol("WM_DELETE_WINDOW", self.close_error)
 
         # Prevent the user from clicking the main window
         # until the error window is closed
         self.err_win.grab_set()
+
+    def close_error(self):
+        self.err_win.destroy()
+        self.err_win = None
+
+    # Confirm if you would like to reset the json file incase of accidential deletion or because of a bug 
+    def confirm_reset(self):
+        self.confirm_win = customtkinter.CTkToplevel(master=self)
+        self.confirm_win.title("Warning")
+        self.confirm_win.geometry("700x350")
+        self.confirm_win.resizable(False, False)
+
+        self.confirm_win.transient(self)
+        self.confirm_win.lift()
+        self.confirm_win.focus_force()
+        self.confirm_win.grab_set()
+
+        self.confirm_lbl = customtkinter.CTkLabel(
+            master=self.confirm_win, 
+            text="Config.json is invalid. Do you want to overwrite the existing data?",
+            font=("Arial", 17, "bold")
+        )
+        self.confirm_lbl.pack(expand=False, padx=10, pady=10)
+
+        self.yes_btn = customtkinter.CTkButton(
+            master=self.confirm_win,
+            text="Yes",
+            font=("Arial", 18, "bold"),
+            command=self.reset_config,
+            fg_color="#416625",
+            hover_color="#2A541B",
+            width=450,
+            height=60
+        )
+        self.yes_btn.pack(pady=20)
+
+        self.no_btn = customtkinter.CTkButton(
+            master=self.confirm_win,
+            text="No",
+            font=("Arial", 18, "bold"),
+            hover_color="#662525",
+            fg_color="#893838",
+            command=self.cancel_reset,
+            width=450,
+            height=60
+        )
+        self.no_btn.pack(pady=20)
+
+    def cancel_reset(self):
+        self.confirm_win.destroy()
+
+    def reset_config(self):
+        self.data = {"apps": {}}
+
+        try:
+
+            with open(file="config.json", mode="w") as file:
+                json.dump(self.data, file)
+
+                self.apps = self.data["apps"]
+
+        except OSError:
+            self.confirm_win.grab_release()
+            self.show_error("Could not reset config.json")
+            self.confirm_win.grab_set()
+            return
+
+        self.config_valid = True
+
+        for widget in self.content.winfo_children():
+            widget.destroy()
+
+        self.create_buttons()
+        
+        self.confirm_win.destroy()
 
     # Read the saved apps from config.json and create their buttons
     def create_buttons(self):
@@ -113,20 +196,38 @@ class App(customtkinter.CTk):
             if not isinstance(self.data, dict) or not isinstance(self.data.get("apps"), dict):
                 raise ValueError
 
+            # Stop loading apps if the configuration contains invalid data.
+            for name, cmd in self.data["apps"].items():
+                if not isinstance(name, str) or not isinstance(cmd, str):
+                    self.show_error("App name or commmand must be text")
+                    self.config_valid = False
+                    return
+                if not name.strip() or not cmd.strip():
+                    self.show_error("App name or command cannot be empty")
+                    self.config_valid = False
+                    return
+       
             # Get the dictionary containing all saved apps
             self.apps = self.data["apps"]
 
         except FileNotFoundError:
-            # This happens when config.json does not exist
-            self.show_error("config.json not found")
+            try:
+                # This happens when config.json does not exist
+                with open(file="config.json", mode="w") as file:
+                    json.dump(self.data, file)
+
+            except OSError:
+                self.show_error("Could not create config.json")
+                return
 
         except (OSError, ValueError):
             # OSError means the file could not be opened or read.
             # ValueError means the file contains invalid JSON
             # or does not have the expected structure.
+            self.config_valid = False
             self.data = {"apps": {}}
             self.apps = self.data["apps"]
-            self.show_error("Could not read config.json")
+            self.confirm_reset()
 
         # Go through every app stored in the dictionary.
         # enumerate() gives each app an index number as well as its name.
@@ -181,6 +282,10 @@ class App(customtkinter.CTk):
 
     # Open a window where the user can change an app's name and command
     def edit_window(self, app):
+
+        if not self.config_valid:
+            return
+
         self.edit_win = customtkinter.CTkToplevel(master=self)
         self.edit_win.title("Edit app")
         self.edit_win.geometry("600x325")
@@ -228,6 +333,10 @@ class App(customtkinter.CTk):
 
     # Save the edited app information
     def save_edit(self):
+
+        if not self.config_valid:
+            return
+        
         # .get() reads the text from an entry field.
         # .strip() removes unnecessary spaces from the beginning and end.
         name = self.edit_name.get().strip()
@@ -281,6 +390,10 @@ class App(customtkinter.CTk):
 
     # Remove an app from the list
     def delete_app(self, app):
+
+        if not self.config_valid:
+            return
+
         # Remove the selected app from the dictionary.
         # Store its command so we can restore it if saving fails.
         old_cmd = self.apps.pop(app)
@@ -347,7 +460,7 @@ class App(customtkinter.CTk):
     def create_add_button(self):
         self.add_btn = customtkinter.CTkButton(
             master=self.sidebar,
-            text="Add app/command",
+            text="Add app",
             width=250,
             height=80,
             font=("Arial", 17, "bold"),
@@ -359,6 +472,10 @@ class App(customtkinter.CTk):
 
     # Open a window where the user can enter a new app
     def add_window(self):
+
+        if not self.config_valid:
+            return
+
         self.add_win = customtkinter.CTkToplevel(master=self)
         self.add_win.title("")
         self.add_win.geometry("600x325")
@@ -396,6 +513,10 @@ class App(customtkinter.CTk):
 
     # Save a new app to the JSON file
     def save_add(self):
+        # Stops the user form changing the config file when its broken
+        if not self.config_valid:
+            return
+        
         # Get the name and command from the entry fields.
         # strip() removes spaces from the start and end of the text.
         name = self.add_name.get().strip()
